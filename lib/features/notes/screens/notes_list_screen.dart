@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:prack_9/features/notes/models/note.dart';
-import 'package:prack_9/data/note_repository.dart';
+import 'package:prack_9/data/note_store.dart';
 import '../widgets/note_list_view.dart';
 import '../widgets/category_dropdown.dart';
 
@@ -18,10 +19,12 @@ class _NotesListScreenState extends State<NotesListScreen> {
   List<Note> filteredNotes = [];
   String _selectedCategory = 'Все категории';
   String _sortCriteria = 'Дата создания';
+  late NoteStore _store;
 
   @override
   void initState() {
     super.initState();
+    _store = GetIt.I<NoteStore>();
     _controller.addListener(_filterNotes);
     _filterNotes();
   }
@@ -29,7 +32,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
   void _filterNotes() {
     final query = _controller.text.toLowerCase();
     setState(() {
-      filteredNotes = GetIt.I<NoteRepository>().notes.where((note) {
+      filteredNotes = _store.notes.where((note) {
         final matchesQuery = note.title.toLowerCase().contains(query) ||
             note.content.toLowerCase().contains(query);
         final matchesCategory = _selectedCategory == 'Все категории' ||
@@ -37,21 +40,6 @@ class _NotesListScreenState extends State<NotesListScreen> {
         return matchesQuery && matchesCategory && !note.isArchived;
       }).toList();
       _sortNotes();
-    });
-  }
-
-  void _sortNotes() {
-    setState(() {
-      filteredNotes.sort((a, b) {
-        switch (_sortCriteria) {
-          case 'Заголовок':
-            return a.title.compareTo(b.title);
-          case 'Дата создания':
-            return b.creationDate.compareTo(a.creationDate);
-          default:
-            return 0;
-        }
-      });
     });
   }
 
@@ -69,7 +57,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
           TextButton(
             onPressed: () {
               setState(() {
-                GetIt.I<NoteRepository>().deleteNote(id);
+                _store.deleteNote(id);
                 _filterNotes();
               });
               Navigator.of(context).pop();
@@ -80,6 +68,22 @@ class _NotesListScreenState extends State<NotesListScreen> {
       ),
     );
   }
+
+  void _sortNotes() {
+    setState(() {
+      filteredNotes.sort((a, b) {
+        switch (_sortCriteria) {
+          case 'Заголовок':
+            return a.title.compareTo(b.title);
+          case 'Дата создания':
+            return b.creationDate.compareTo(a.creationDate);
+          default:
+            return 0;
+        }
+      });
+    });
+  }
+
 
   @override
   void dispose() {
@@ -189,14 +193,16 @@ class _NotesListScreenState extends State<NotesListScreen> {
             ),
             const SizedBox(height: 24.0),
             Expanded(
-              child: NoteListView(
-                notes: filteredNotes,
-                onDelete: (index) => _deleteNote(filteredNotes[index].id),
-                onTap: (index) {
-                  final note = filteredNotes[index];
-                  context.push('/edit/${note.id}', extra: note).then((_)=> setState(() => _filterNotes()));
-                },
-                onRefresh: _filterNotes,
+              child: Observer(
+                builder: (_) => NoteListView(
+                  notes: filteredNotes,
+                  onDelete: (index) => _deleteNote(filteredNotes[index].id),
+                  onTap: (index) {
+                    final note = filteredNotes[index];
+                    context.push('/edit/${note.id}', extra: note).then((_)=> setState(() => _filterNotes()));
+                  },
+                  onRefresh: _filterNotes,
+                ),
               ),
             ),
           ],

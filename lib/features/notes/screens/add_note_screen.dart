@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:prack_9/features/notes/models/note.dart';
-import 'package:prack_9/data/note_repository.dart';
+import 'package:prack_9/data/note_store.dart';
 import '../widgets/category_dropdown.dart';
-
 
 class AddNoteScreen extends StatefulWidget {
   const AddNoteScreen({super.key});
@@ -17,6 +16,13 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
   String _selectedCategory = 'Без категории';
+  late NoteStore _store;
+
+  @override
+  void initState() {
+    super.initState();
+    _store = GetIt.I<NoteStore>();
+  }
 
   @override
   void dispose() {
@@ -29,13 +35,13 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-          title: const Text('Добавить заметку'),
-          leading: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            onPressed: () {
-              context.pop();
-            },
-          ),
+        title: const Text('Добавить заметку'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            context.pop();
+          },
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 24.0),
@@ -92,7 +98,7 @@ class _AddNoteScreenState extends State<AddNoteScreen> {
                 final title = _titleController.text.trim();
                 final content = _contentController.text.trim();
                 if (title.isNotEmpty && content.isNotEmpty) {
-                  GetIt.I<NoteRepository>().addNote(
+                  _store.addNote(
                     Note(
                       title: title,
                       content: content,
