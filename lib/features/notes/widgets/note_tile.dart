@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:prack_9/features/notes/models/note.dart';
-import 'package:prack_9/data/note_repository.dart';
-import 'package:prack_9/features/notes/widgets/note_inherited.dart';
+import 'package:prack_9/data/note_store.dart';
 
 class NoteTile extends StatelessWidget {
   final Note note;
@@ -20,6 +20,7 @@ class NoteTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final store = GetIt.I<NoteStore>();
     final newlineIndex = note.content.indexOf('\n');
     final previewLength = newlineIndex != -1 ? newlineIndex : 30;
     final preview = note.content.length > previewLength
@@ -94,44 +95,56 @@ class NoteTile extends StatelessWidget {
               contentPadding: const EdgeInsets.symmetric(horizontal: 8.0),
             ),
           ),
-          IconButton(
-            icon: Icon(
-              note.isFavorite ? Icons.favorite : Icons.favorite_border,
-              color: note.isFavorite ? Colors.red : Colors.grey,
-              size: 24.0,
-            ),
-            onPressed: () {
-              GetIt.I<NoteRepository>().toggleFavorite(note.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    note.isFavorite
-                        ? 'Заметка удалена из избранного'
-                        : 'Заметка добавлена в избранное',
-                  ),
+          Observer(
+            builder: (_) {
+              final currentNote = store.notes.firstWhere((n) => n.id == note.id);
+              return IconButton(
+                icon: Icon(
+                  currentNote.isFavorite ? Icons.favorite : Icons.favorite_border,
+                  color: currentNote.isFavorite ? Colors.red : Colors.grey,
+                  size: 24.0,
                 ),
+                onPressed: () {
+                  final wasFavorite = currentNote.isFavorite;
+                  store.toggleFavorite(note.id);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        wasFavorite
+                            ? 'Заметка удалена из избранного'
+                            : 'Заметка добавлена в избранное',
+                      ),
+                    ),
+                  );
+                  onRefresh();
+                },
               );
-              onRefresh();
             },
           ),
-          IconButton(
-            icon: Icon(
-              note.isArchived ? Icons.unarchive : Icons.archive,
-              color: Colors.blue[300],
-              size: 24.0,
-            ),
-            onPressed: () {
-              GetIt.I<NoteRepository>().toggleArchive(note.id);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    note.isArchived
-                        ? 'Заметка восстановлена из архива'
-                        : 'Заметка добавлена в архив',
-                  ),
+          Observer(
+            builder: (_) {
+              final currentNote = store.notes.firstWhere((n) => n.id == note.id);
+              return IconButton(
+                icon: Icon(
+                  currentNote.isArchived ? Icons.unarchive : Icons.archive,
+                  color: Colors.blue[300],
+                  size: 24.0,
                 ),
+                onPressed: () {
+                  final wasArchived = currentNote.isArchived;
+                  store.toggleArchive(note.id);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        wasArchived
+                            ? 'Заметка восстановлена из архива'
+                            : 'Заметка добавлена в архив',
+                      ),
+                    ),
+                  );
+                  onRefresh();
+                },
               );
-              onRefresh();
             },
           ),
           IconButton(
