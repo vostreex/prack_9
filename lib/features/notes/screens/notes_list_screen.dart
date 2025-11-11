@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
-import 'package:prack_9/features/notes/models/note.dart';
-import 'package:prack_9/data/note_store.dart';
+import '../state/notes_list_store.dart';
 import '../widgets/note_list_view.dart';
 import '../widgets/category_dropdown.dart';
 
@@ -16,31 +15,19 @@ class NotesListScreen extends StatefulWidget {
 
 class _NotesListScreenState extends State<NotesListScreen> {
   final TextEditingController _controller = TextEditingController();
-  List<Note> filteredNotes = [];
-  String _selectedCategory = 'Все категории';
-  String _sortCriteria = 'Дата создания';
-  late NoteStore _store;
+  late NotesListStore _store;
 
   @override
   void initState() {
     super.initState();
-    _store = GetIt.I<NoteStore>();
-    _controller.addListener(_filterNotes);
-    _filterNotes();
+    _store = GetIt.I<NotesListStore>();
+    _controller.addListener(() => _store.setSearchQuery(_controller.text));
   }
 
-  void _filterNotes() {
-    final query = _controller.text.toLowerCase();
-    setState(() {
-      filteredNotes = _store.notes.where((note) {
-        final matchesQuery = note.title.toLowerCase().contains(query) ||
-            note.content.toLowerCase().contains(query);
-        final matchesCategory = _selectedCategory == 'Все категории' ||
-            note.category == _selectedCategory;
-        return matchesQuery && matchesCategory && !note.isArchived;
-      }).toList();
-      _sortNotes();
-    });
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   void _deleteNote(String id) {
@@ -56,10 +43,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
-                _store.deleteNote(id);
-                _filterNotes();
-              });
+              _store.deleteNote(id);
               Navigator.of(context).pop();
             },
             child: const Text('Удалить'),
@@ -69,26 +53,30 @@ class _NotesListScreenState extends State<NotesListScreen> {
     );
   }
 
-  void _sortNotes() {
-    setState(() {
-      filteredNotes.sort((a, b) {
-        switch (_sortCriteria) {
-          case 'Заголовок':
-            return a.title.compareTo(b.title);
-          case 'Дата создания':
-            return b.creationDate.compareTo(a.creationDate);
-          default:
-            return 0;
-        }
-      });
-    });
+  void _toggleFavorite(BuildContext ctx, String id) {
+    final note = _store.notes.firstWhere((n) => n.id == id);
+    final wasFavorite = note.isFavorite;
+    _store.toggleFavorite(id);
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: Text(
+          wasFavorite ? 'Заметка удалена из избранного' : 'Заметка добавлена в избранное',
+        ),
+      ),
+    );
   }
 
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
+  void _toggleArchive(BuildContext ctx, String id) {
+    final note = _store.notes.firstWhere((n) => n.id == id);
+    final wasArchived = note.isArchived;
+    _store.toggleArchive(id);
+    ScaffoldMessenger.of(ctx).showSnackBar(
+      SnackBar(
+        content: Text(
+          wasArchived ? 'Заметка восстановлена из архива' : 'Заметка добавлена в архив',
+        ),
+      ),
+    );
   }
 
   @override
@@ -103,11 +91,11 @@ class _NotesListScreenState extends State<NotesListScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.archive),
-            onPressed: () => context.push('/archive').then((_)=> setState(() => _filterNotes())),
+            onPressed: () => context.push('/archive'),
           ),
           IconButton(
             icon: const Icon(Icons.favorite),
-            onPressed: () => context.push('/favorites').then((_)=> setState(() => _filterNotes())),
+            onPressed: () => context.push('/favorites'),
           ),
         ],
       ),
@@ -138,70 +126,72 @@ class _NotesListScreenState extends State<NotesListScreen> {
                   ),
                 ),
                 const SizedBox(width: 16.0),
-                CategoryDropdown(
-                  value: _selectedCategory,
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _selectedCategory = newValue!;
-                      _filterNotes();
-                    });
-                  },
+                Observer(
+                  builder: (_) => CategoryDropdown(
+                    value: _store.selectedCategory,
+                    onChanged: (String? newValue) {
+                      _store.setSelectedCategory(newValue!);
+                    },
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 20.0),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey[400]!),
-                borderRadius: BorderRadius.circular(12.0),
-                color: Colors.grey[100],
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'Сортировать по:',
-                    style: TextStyle(
-                      fontSize: 14.0,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  Expanded(
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _sortCriteria,
-                        isExpanded: true,
-                        items: <String>['Дата создания', 'Заголовок']
-                            .map<DropdownMenuItem<String>>((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          setState(() {
-                            _sortCriteria = newValue!;
-                            _sortNotes();
-                          });
-                        },
+            Observer(
+              builder: (_) => Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey[400]!),
+                  borderRadius: BorderRadius.circular(12.0),
+                  color: Colors.grey[100],
+                ),
+                child: Row(
+                  children: [
+                    Text(
+                      'Сортировать по:',
+                      style: TextStyle(
+                        fontSize: 14.0,
+                        color: Colors.grey[700],
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 8.0),
+                    Expanded(
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<String>(
+                          value: _store.sortCriteria,
+                          isExpanded: true,
+                          items: <String>['Дата создания', 'Заголовок']
+                              .map<DropdownMenuItem<String>>((String value) {
+                            return DropdownMenuItem<String>(
+                              value: value,
+                              child: Text(value),
+                            );
+                          }).toList(),
+                          onChanged: (String? newValue) {
+                            _store.setSortCriteria(newValue!);
+                          },
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 24.0),
             Expanded(
               child: Observer(
                 builder: (_) => NoteListView(
-                  notes: filteredNotes,
-                  onDelete: (index) => _deleteNote(filteredNotes[index].id),
+                  notes: _store.filteredNotes,
+                  onDelete: (index) => _deleteNote(_store.filteredNotes[index].id),
                   onTap: (index) {
-                    final note = filteredNotes[index];
-                    context.push('/edit/${note.id}', extra: note).then((_)=> setState(() => _filterNotes()));
+                    final note = _store.filteredNotes[index];
+                    context.push('/edit/${note.id}', extra: note);
                   },
-                  onRefresh: _filterNotes,
+                  onRefresh: () {},
+                  onToggleFavorite: (index) =>
+                      _toggleFavorite(context, _store.filteredNotes[index].id),
+                  onToggleArchive: (index) =>
+                      _toggleArchive(context, _store.filteredNotes[index].id),
                 ),
               ),
             ),
@@ -210,7 +200,7 @@ class _NotesListScreenState extends State<NotesListScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          context.push('/add').then((_)=> setState(() => _filterNotes()));
+          context.push('/add');
         },
         child: const Icon(Icons.add),
         backgroundColor: Colors.blue,
