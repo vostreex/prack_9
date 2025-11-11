@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import 'package:prack_9/features/notes/models/note.dart';
 import 'package:prack_9/shared/widgets/empty_state.dart';
 import 'note_tile.dart';
@@ -8,6 +9,8 @@ class NoteListView extends StatelessWidget {
   final Function(int) onTap;
   final Function(int) onDelete;
   final VoidCallback onRefresh;
+  final Function(int) onToggleFavorite;
+  final Function(int) onToggleArchive;
 
   const NoteListView({
     super.key,
@@ -15,6 +18,8 @@ class NoteListView extends StatelessWidget {
     required this.onTap,
     required this.onDelete,
     required this.onRefresh,
+    required this.onToggleFavorite,
+    required this.onToggleArchive,
   });
 
   @override
@@ -24,11 +29,15 @@ class NoteListView extends StatelessWidget {
         : ListView.builder(
       itemCount: notes.length,
       itemBuilder: (context, index) {
-        return NoteTile(
-          note: notes[index],
-          onTap: () => onTap(index),
-          onDelete: () => onDelete(index),
-          onRefresh: onRefresh,
+        return Observer(
+          builder: (_) => NoteTile(
+            note: notes[index],
+            onTap: () => onTap(index),
+            onDelete: () => onDelete(index),
+            onRefresh: onRefresh,
+            onToggleFavorite: () => onToggleFavorite(index),
+            onToggleArchive: () => onToggleArchive(index),
+          ),
         );
       },
     );
