@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 import 'package:prack_9/features/notes/models/note.dart';
-import 'package:prack_9/data/note_store.dart';
+import 'package:prack_9/features/notes/state/edit_note_store.dart';
+import 'package:flutter_mobx/flutter_mobx.dart';
 import '../widgets/category_dropdown.dart';
 
 class EditNoteScreen extends StatefulWidget {
@@ -22,16 +23,22 @@ class EditNoteScreen extends StatefulWidget {
 class _EditNoteScreenState extends State<EditNoteScreen> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
-  String _selectedCategory = 'Без категории';
-  late NoteStore _store;
+  late EditNoteStore _store;
 
   @override
   void initState() {
     super.initState();
-    _store = GetIt.I<NoteStore>();
+    _store = GetIt.I<EditNoteStore>();
     _titleController.text = widget.note.title;
     _contentController.text = widget.note.content;
-    _selectedCategory = widget.note.category;
+    _store.setTitle(widget.note.title);
+    _store.setBody(widget.note.content);
+    _store.setSelectedCategory(widget.note.category);
+    _titleController.addListener(() {
+      _store.setTitle(_titleController.text);
+      setState(() {});
+    });
+    _contentController.addListener(() => _store.setBody(_contentController.text));
   }
 
   @override
@@ -94,13 +101,13 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
               minLines: 3,
             ),
             const SizedBox(height: 20.0),
-            CategoryDropdown(
-              value: _selectedCategory,
-              onChanged: (String? newValue) {
-                setState(() {
-                  _selectedCategory = newValue!;
-                });
-              },
+            Observer(
+              builder: (_) => CategoryDropdown(
+                value: _store.selectedCategory,
+                onChanged: (String? newValue) {
+                  _store.setSelectedCategory(newValue!);
+                },
+              ),
             ),
             const SizedBox(height: 24.0),
             ElevatedButton(
@@ -113,7 +120,7 @@ class _EditNoteScreenState extends State<EditNoteScreen> {
                     Note(
                       title: title,
                       content: content,
-                      category: _selectedCategory,
+                      category: _store.selectedCategory,
                       isFavorite: widget.note.isFavorite,
                       isArchived: widget.note.isArchived,
                     ),
